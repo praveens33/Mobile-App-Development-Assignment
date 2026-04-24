@@ -1,179 +1,134 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  StyleSheet, Text, View, FlatList, TouchableOpacity, 
-  SafeAreaView, TextInput, Alert, KeyboardAvoidingView, Platform 
+  View, Text, FlatList, TouchableOpacity, ActivityIndicator, 
+  Image, StyleSheet, SafeAreaView 
 } from 'react-native';
-import { NavigationContainer, useIsFocused } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Stack = createStackNavigator();
 
-// home screen
-const HomeScreen = ({ navigation }: any) => {
-  const [todos, setTodos] = useState<any[]>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const isFocused = useIsFocused(); 
+// screen 1 categres 
+const CategoryScreen = ({ navigation }: any) => {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isFocused) loadTodos();
-  }, [isFocused]);
+    fetch('https://fakestoreapi.com/products/categories')
+      .then(res => res.json())
+      .then(json => {
+        setCategories(json);
+        setLoading(false);
+      });
+  }, []);
 
-  const loadTodos = async () => {
-    const stored = await AsyncStorage.getItem('todos');
-    if (stored) setTodos(JSON.parse(stored));
-  };
-
-  const deleteTodo = async (id: string) => {
-    const updated = todos.filter(t => t.id !== id);
-    setTodos(updated);
-    await AsyncStorage.setItem('todos', JSON.stringify(updated));
-  };
-
-  const finishTodo = async (id: string) => {
-    const updated = todos.map(t => t.id === id ? { ...t, isFinished: true } : t);
-    setTodos(updated);
-    await AsyncStorage.setItem('todos', JSON.stringify(updated));
-  };
-
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
-  };
+  if (loading) return <ActivityIndicator size="large" style={styles.centered} />;
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}><Text style={styles.title}>My Todo List</Text></View>
-      
       <FlatList
-        data={todos}
-        keyExtractor={item => item.id}
+        data={categories}
+        keyExtractor={(item) => item}
         renderItem={({ item }) => (
-          <View style={[styles.todoBox, item.isFinished && styles.finishedBox]}>
-            <View style={styles.todoRow}>
-              <Text style={[styles.todoText, item.isFinished && styles.strikeText]}>{item.title}</Text>
-              <TouchableOpacity onPress={() => toggleExpand(item.id)}>
-                <Text style={styles.caret}>{expandedId === item.id ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {expandedId === item.id && (
-              <View style={styles.expandedContent}>
-                <Text style={styles.descText}>{item.description}</Text>
-                <View style={styles.controlPanel}>
-                  {!item.isFinished && (
-                    <TouchableOpacity onPress={() => finishTodo(item.id)}>
-                      <Text style={styles.iconBtn}>✅</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => deleteTodo(item.id)}>
-                    <Text style={styles.iconBtn}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
+          <TouchableOpacity 
+            style={styles.card} 
+            onPress={() => navigation.navigate('Products', { categoryName: item })}
+          >
+            <Text style={styles.categoryText}>{item.toUpperCase()}</Text>
+          </TouchableOpacity>
         )}
-        contentContainerStyle={styles.listContainer}
       />
-
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddTodo')}>
-          <Text style={styles.buttonText}>+ Add New Todo</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 };
 
-//add todo screen
-const AddTodoScreen = ({ navigation }: any) => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+// screen 2 product list
+const ProductListScreen = ({ route, navigation }: any) => {
+  const { categoryName } = route.params;
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSave = async () => {
-    if (!title.trim() || !description.trim()) {
-      Alert.alert('Error', 'Both Title and Description are required!');
-      return;
-    }
+  useEffect(() => {
+    fetch(`https://fakestoreapi.com/products/category/${categoryName}`)
+      .then(res => res.json())
+      .then(json => {
+        setProducts(json);
+        setLoading(false);
+      });
+  }, []);
 
-    const newTodo = {
-      id: Date.now().toString(),
-      title,
-      description,
-      isFinished: false,
-    };
-
-    const stored = await AsyncStorage.getItem('todos');
-    const todos = stored ? JSON.parse(stored) : [];
-    todos.push(newTodo);
-    
-    await AsyncStorage.setItem('todos', JSON.stringify(todos));
-    Alert.alert('Success', 'Todo Added Successfully');
-    setTitle('');
-    setDescription('');
-  };
+  if (loading) return <ActivityIndicator size="large" style={styles.centered} />;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}><Text style={styles.title}>Add New Task</Text></View>
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Title</Text>
-        <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Title..." />
-        <Text style={styles.label}>Description</Text>
-        <TextInput 
-          style={[styles.input, styles.textArea]} 
-          value={description} onChangeText={setDescription}
-          multiline numberOfLines={4} placeholder="Details..." 
-        />
-      </View>
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={[styles.actionButton, styles.cancelBtn]} onPress={() => navigation.goBack()}>
-          <Text style={styles.actionText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.saveBtn]} onPress={handleSave}>
-          <Text style={styles.actionText}>Save</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <FlatList
+        data={products}
+        keyExtractor={(item: any) => item.id.toString()}
+        renderItem={({ item }: any) => (
+          <TouchableOpacity 
+            style={styles.productItem} 
+            onPress={() => navigation.navigate('Details', { productId: item.id })}
+          >
+            <Image source={{ uri: item.image }} style={styles.thumb} />
+            <View style={styles.info}>
+              <Text style={styles.productTitle}>{item.title}</Text>
+              <Text style={styles.price}>${item.price}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+      />
+    </View>
   );
 };
 
+// screen product detail
+const ProductDetailScreen = ({ route }: any) => {
+  const { productId } = route.params;
+  const [product, setProduct] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`https://fakestoreapi.com/products/${productId}`)
+      .then(res => res.json())
+      .then(json => setProduct(json));
+  }, []);
+
+  if (!product) return <ActivityIndicator size="large" style={styles.centered} />;
+
+  return (
+    <View style={styles.container}>
+      <Image source={{ uri: product.image }} style={styles.detailImage} resizeMode="contain" />
+      <Text style={styles.detailTitle}>{product.title}</Text>
+      <Text style={styles.detailPrice}>${product.price}</Text>
+      <Text style={styles.detailDesc}>{product.description}</Text>
+    </View>
+  );
+};
+
+// navigation
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="AddTodo" component={AddTodoScreen} />
+      <Stack.Navigator>
+        <Stack.Screen name="Categories" component={CategoryScreen} options={{ title: 'Fake Store' }} />
+        <Stack.Screen name="Products" component={ProductListScreen} options={({ route }: any) => ({ title: route.params.categoryName.toUpperCase() })} />
+        <Stack.Screen name="Details" component={ProductDetailScreen} options={{ title: 'Product Details' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f5' },
-  header: { paddingTop: 50, paddingBottom: 20, backgroundColor: '#6200EE', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: 'bold', color: 'white' },
-  listContainer: { padding: 15 },
-  todoBox: { backgroundColor: 'white', padding: 15, borderRadius: 10, marginBottom: 10, elevation: 3 },
-  todoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  todoText: { fontSize: 18, fontWeight: '600' },
-  caret: { fontSize: 20, color: '#6200EE' },
-  expandedContent: { marginTop: 15, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
-  descText: { fontSize: 16, color: '#666', marginBottom: 15 },
-  controlPanel: { flexDirection: 'row', justifyContent: 'flex-end' },
-  iconBtn: { fontSize: 24, marginLeft: 20 },
-  footer: { padding: 20 },
-  addButton: { backgroundColor: '#03DAC6', padding: 15, borderRadius: 30, alignItems: 'center' },
-  buttonText: { fontSize: 18, fontWeight: 'bold' },
-  inputContainer: { padding: 20 },
-  label: { fontSize: 16, marginBottom: 5, fontWeight: 'bold' },
-  input: { backgroundColor: 'white', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', marginBottom: 20 },
-  textArea: { height: 100, textAlignVertical: 'top' },
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  actionButton: { padding: 15, borderRadius: 10, minWidth: 120, alignItems: 'center' },
-  cancelBtn: { backgroundColor: '#757575' },
-  saveBtn: { backgroundColor: '#4CAF50' },
-  actionText: { color: 'white', fontWeight: 'bold' },
-  finishedBox: { opacity: 0.6, backgroundColor: '#e8f5e9' },
-  strikeText: { textDecorationLine: 'line-through', color: '#888' },
+  container: { flex: 1, backgroundColor: '#fff', padding: 10 },
+  centered: { flex: 1, justifyContent: 'center' },
+  card: { padding: 20, backgroundColor: '#f9f9f9', marginBottom: 10, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
+  categoryText: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  productItem: { flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  thumb: { width: 60, height: 60, marginRight: 15 },
+  info: { flex: 1, justifyContent: 'center' },
+  productTitle: { fontSize: 16 },
+  price: { fontSize: 14, color: 'green', fontWeight: 'bold' },
+  detailImage: { width: '100%', height: 300, marginBottom: 20 },
+  detailTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
+  detailPrice: { fontSize: 20, color: 'green', marginBottom: 10 },
+  detailDesc: { fontSize: 16, color: '#444' }
 });
